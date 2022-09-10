@@ -19,11 +19,11 @@
   "environment": "*",
   "entrypoints": {
     "main": [
-      "net.fabricmc.example.ExampleMod"
+      "xyz.sunrose.unobtrusive_vines.UnobtrusiveVines"
     ]
   },
   "mixins": [
-    "modid.mixins.json"
+    "unobtrusive_vines.mixins.json"
   ],
 
   "depends": {

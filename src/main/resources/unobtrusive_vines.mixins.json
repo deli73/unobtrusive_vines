@@ -1,12 +1,13 @@
 {
   "required": true,
   "minVersion": "0.8",
-  "package": "net.fabricmc.example.mixin",
+  "package": "xyz.sunrose.unobtrusive_vines.mixin",
   "compatibilityLevel": "JAVA_17",
   "mixins": [
+    "MixinShearsItem",
+    "MixinVineBlock"
   ],
   "client": [
-    "ExampleMixin"
   ],
   "injectors": {
     "defaultRequire": 1
