@@ -3,6 +3,7 @@ package xyz.sunrose.unobtrusive_vines.mixin;
 import net.minecraft.advancement.criterion.Criteria;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
 import net.minecraft.block.VineBlock;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
@@ -29,7 +30,7 @@ public class MixinShearsItem {
         BlockState blockState = world.getBlockState(blockPos);
         Block block = blockState.getBlock();
         if (block instanceof VineBlock) {
-            if (blockState.get(UnobtrusiveVines.CAN_GROW)) {
+            if (blockState.get(UnobtrusiveVines.CAN_GROW) && !world.getBlockState(blockPos.down()).isOf(Blocks.VINE)) {
                 PlayerEntity playerEntity = context.getPlayer();
                 ItemStack itemStack = context.getStack();
                 if (playerEntity instanceof ServerPlayerEntity) {
@@ -39,9 +40,7 @@ public class MixinShearsItem {
                 world.playSound(playerEntity, blockPos, SoundEvents.BLOCK_GROWING_PLANT_CROP, SoundCategory.BLOCKS, 1.0F, 1.0F);
                 world.setBlockState(blockPos, blockState.with(UnobtrusiveVines.CAN_GROW, false));
                 if (playerEntity != null) {
-                    itemStack.damage(1, playerEntity, (player) -> {
-                        player.sendToolBreakStatus(context.getHand());
-                    });
+                    itemStack.damage(1, playerEntity, (player) -> player.sendToolBreakStatus(context.getHand()));
                 }
 
                 cir.setReturnValue(ActionResult.success(world.isClient));

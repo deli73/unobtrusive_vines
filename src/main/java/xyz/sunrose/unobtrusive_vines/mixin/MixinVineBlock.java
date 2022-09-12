@@ -1,10 +1,7 @@
 package xyz.sunrose.unobtrusive_vines.mixin;
 
 
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Fertilizable;
-import net.minecraft.block.VineBlock;
+import net.minecraft.block.*;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.state.StateManager;
 import net.minecraft.state.property.BooleanProperty;
@@ -22,6 +19,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import xyz.sunrose.unobtrusive_vines.UnobtrusiveVines;
 
 import java.util.Iterator;
+import java.util.Map;
 
 @Mixin(VineBlock.class)
 public abstract class MixinVineBlock extends Block implements Fertilizable {
@@ -46,8 +44,10 @@ public abstract class MixinVineBlock extends Block implements Fertilizable {
     @Shadow protected abstract BlockState getGrownState(BlockState above, BlockState state, Random random);
 
 
+    @Shadow @Final public static Map<Direction, BooleanProperty> FACING_PROPERTIES;
     // == PROPERTIES AND INJECTIONS ==
     private static final BooleanProperty CAN_GROW = UnobtrusiveVines.CAN_GROW;
+    private static final Direction[] DIRS = new Direction[]{Direction.WEST, Direction.EAST, Direction.NORTH, Direction.SOUTH};
 
     public MixinVineBlock(Settings settings) {
         super(settings);
@@ -66,130 +66,62 @@ public abstract class MixinVineBlock extends Block implements Fertilizable {
 
     // == GROWTH ==
 
+    private boolean canGrowDown(BlockView world, BlockPos pos, BlockState state) {
+        BlockState belowState = world.getBlockState(pos.down());
+        if (!belowState.isOf(Blocks.VINE)) {
+            return belowState.isAir();
+        }
+        for (Direction side : DIRS){ //if theres a free spot to grow from the current sides to down below, then growable
+            if (state.get(FACING_PROPERTIES.get(side)) && !belowState.get(FACING_PROPERTIES.get(side))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public boolean isFertilizable(BlockView world, BlockPos pos, BlockState state, boolean isClient) {
-        return canGrowAt(world, pos);
+        return canGrowDown(world, pos, state);
     }
 
     @Override
     public boolean canGrow(World world, Random random, BlockPos pos, BlockState state) {
-        return true;
+        return canGrowDown(world, pos, state);
     }
 
     @Override
     public void grow(ServerWorld world, Random random, BlockPos pos, BlockState state) {
-        // vanilla randomTick of vine block but better notated, with chances altered
-        for (int i = 0; i < 2; i++) { // run twice every call instead of ~once every four calls
-            Direction randomDir = Direction.random(random); // pick a random direction
-            //if the direction is horizontal and we don't have a vine on that side of the block (??)
-            if (randomDir.getAxis().isHorizontal() && !(Boolean)state.get(getFacingProperty(randomDir))) {
-                // if we can grow here
-                if (this.canGrowAt(world, pos)) {
-                    // get the position and state of the offset in the random direction
-                    BlockPos offsetPos = pos.offset(randomDir);
-                    BlockState offsetState = world.getBlockState(offsetPos);
-                    // if the offset position is air///
-                    if (offsetState.isAir()) {
-                        // pick the directions either side
-                        Direction rotatedCW = randomDir.rotateYClockwise();
-                        Direction rotatedCCW = randomDir.rotateYCounterclockwise();
-                        boolean isOnCWFace = state.get(getFacingProperty(rotatedCW));
-                        boolean isOnCCWFace = state.get(getFacingProperty(rotatedCCW));
-                        BlockPos offsetPosCW = offsetPos.offset(rotatedCW);
-                        BlockPos offsetPosCCW = offsetPos.offset(rotatedCCW);
-                        // if there's a vine on the new side and it'd connect with the new offset, grow to there
-                        if (isOnCWFace && shouldConnectTo(world, offsetPosCW, rotatedCW)) {
-                            world.setBlockState(offsetPos, this.getDefaultState().with(getFacingProperty(rotatedCW), true), 2);
-                        } else if (isOnCCWFace && shouldConnectTo(world, offsetPosCCW, rotatedCCW)) {
-                            world.setBlockState(offsetPos, this.getDefaultState().with(getFacingProperty(rotatedCCW), true), 2);
-                        } else { //otherwise, try the other direction
-                            Direction reverseDir = randomDir.getOpposite();
-                            if (isOnCWFace && world.isAir(offsetPosCW) && shouldConnectTo(world, pos.offset(rotatedCW), reverseDir)) {
-                                world.setBlockState(offsetPosCW, this.getDefaultState().with(getFacingProperty(reverseDir), true), 2);
-                            } else if (isOnCCWFace && world.isAir(offsetPosCCW) && shouldConnectTo(world, pos.offset(rotatedCCW), reverseDir)) {
-                                world.setBlockState(offsetPosCCW, this.getDefaultState().with(getFacingProperty(reverseDir), true), 2);
-                            } else if ((double)random.nextFloat() < 0.05D && shouldConnectTo(world, offsetPos.up(), Direction.UP)) {
-                                // finally, if all else fails, 5% chance to grow upwards (??)
-                                world.setBlockState(offsetPos, this.getDefaultState().with(UP, true), 2);
-                            }
-                        }
-                    } else if (shouldConnectTo(world, offsetPos, randomDir)) { //if the offset position isn't air, just grow that way
-                        world.setBlockState(pos, state.with(getFacingProperty(randomDir), true), 2);
-                    }
-
+        if (pos.getY() > world.getBottomY()) {
+            BlockPos below = pos.down();
+            BlockState belowState = world.getBlockState(below);
+            if (belowState.isAir() || belowState.isOf(this)) {
+                BlockState nonAirBelowState = belowState.isAir() ? this.getDefaultState() : belowState;
+                BlockState grownState = this.getGrownState(state, nonAirBelowState, random).with(CAN_GROW, true);
+                if (nonAirBelowState != grownState && this.hasHorizontalSide(grownState)) {
+                    world.setBlockState(below, grownState, 2);
+                    world.setBlockState(pos, state.with(CAN_GROW, true));
                 }
-            } else { //if the direction isn't horizontal or the current vine doesn't have a side on the random direction
-                if (randomDir == Direction.UP && pos.getY() < world.getTopY() - 1) { //if the direction is up and there's space in the world
-                    if (this.shouldHaveSide(world, pos, randomDir)) { // grow to top side of current block if possible/needed
-                        world.setBlockState(pos, state.with(UP, true), 2);
-                        return;
-                    }
-
-
-                    BlockPos abovePos = pos.up();
-
-                    if (world.isAir(abovePos)) { //if there's air above,
-                        if (!this.canGrowAt(world, pos)) {
-                            return;
-                        }
-
-                        //and we can grow here, then,
-
-                        BlockState currentState = state;
-                        Iterator<Direction> horiontalDirections = Direction.Type.HORIZONTAL.iterator();
-                        Direction direction;
-
-                        while(true) { //check all horizontal directions and try to grow upwards, until out of connections or a random bool returns false
-                            do {
-                                if (!horiontalDirections.hasNext()) {
-                                    if (this.hasHorizontalSide(currentState)) {
-                                        world.setBlockState(abovePos, currentState, 2);
-                                    }
-
-                                    return;
-                                }
-
-                                direction = horiontalDirections.next();
-                            } while(!random.nextBoolean() && shouldConnectTo(world, abovePos.offset(direction), direction));
-
-                            currentState = currentState.with(getFacingProperty(direction), false); //don't face that way anymore ??
-                        }
-                    }
-                }
-
-                if (pos.getY() > world.getBottomY()) {//if we're above the bottom of the world, grow downwards
-                    BlockPos belowPos = pos.down();
-                    BlockState belowState = world.getBlockState(belowPos);
-                    if (belowState.isAir() || belowState.isOf(this)) {
-                        BlockState nonAirBelowState = belowState.isAir() ? this.getDefaultState() : belowState;
-                        BlockState grownState = this.getGrownState(state, nonAirBelowState, random);
-                        if (nonAirBelowState != grownState && this.hasHorizontalSide(grownState)) {
-                            world.setBlockState(belowPos, grownState, 2);
-                        }
-                    }
-                }
-
             }
         }
     }
 
-
-    public void randomTick(BlockState state, ServerWorld world, BlockPos pos, Random random) { //allow downwards growth in random ticks
-        if (!state.get(CAN_GROW)) {
-            return;
-        }
-        if (random.nextInt(5) == 0) { //slightly less common than vanilla since it's always growing down
-            if (pos.getY() > world.getBottomY()) {//if we're above the bottom of the world, grow downwards
-                BlockPos belowPos = pos.down();
-                BlockState belowState = world.getBlockState(belowPos);
-                if (belowState.isAir() || belowState.isOf(this)) {
+    @Inject(method = "randomTick", at = @At(value = "HEAD"), cancellable = true)
+    private void overrideVineGrowth(BlockState state, ServerWorld world, BlockPos pos, Random random, CallbackInfo ci){
+        // grow only downwards
+        if (random.nextInt(4) == 0 && state.get(CAN_GROW)) {
+            if (pos.getY() > world.getBottomY()) {
+                BlockPos below = pos.down();
+                BlockState belowState = world.getBlockState(below);
+                if (belowState.isAir() || belowState.isOf(this) && belowState.get(CAN_GROW)) {
                     BlockState nonAirBelowState = belowState.isAir() ? this.getDefaultState() : belowState;
                     BlockState grownState = this.getGrownState(state, nonAirBelowState, random);
-                    if (belowState != grownState && this.hasHorizontalSide(grownState)) {
-                        world.setBlockState(belowPos, grownState, 2);
+                    if (nonAirBelowState != grownState && this.hasHorizontalSide(grownState)) {
+                        world.setBlockState(below, grownState, 2);
                     }
                 }
             }
         }
+        ci.cancel();
     }
+
 }
