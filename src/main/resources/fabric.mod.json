@@ -13,7 +13,7 @@
     "sources": "https://github.com/deli73/unobtrusive_vines"
   },
 
-  "license": "CC0-1.0",
+  "license": "BSD-3-Clause",
   "icon": "assets/unobtrusive_vines/icon.png",
 
   "environment": "*",
