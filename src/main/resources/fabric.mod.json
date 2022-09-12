@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
-  "id": "modid",
+  "id": "unobtrusive_vines",
   "version": "${version}",
 
-  "name": "Example Mod",
-  "description": "This is an example description! Tell everyone what your mod is about!",
+  "name": "Unobtrusive Vines",
+  "description": "Removes horizontal vine growth and makes downwards growth easier to control!",
   "authors": [
-    "Me!"
+    "Sunroses"
   ],
   "contact": {
-    "homepage": "https://fabricmc.net/",
-    "sources": "https://github.com/FabricMC/fabric-example-mod"
+    "homepage": "https://sunrose.gay",
+    "sources": "https://github.com/deli73/unobtrusive_vines"
   },
 
   "license": "CC0-1.0",
-  "icon": "assets/modid/icon.png",
+  "icon": "assets/unobtrusive_vines/icon.png",
 
   "environment": "*",
   "entrypoints": {
@@ -28,7 +28,6 @@
 
   "depends": {
     "fabricloader": ">=0.14.9",
-    "fabric-api": "*",
     "minecraft": "~1.19",
     "java": ">=17"
   },
