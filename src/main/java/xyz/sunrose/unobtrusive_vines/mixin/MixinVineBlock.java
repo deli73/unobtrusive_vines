@@ -107,6 +107,7 @@ public abstract class MixinVineBlock extends Block implements Fertilizable {
 
     @Inject(method = "randomTick", at = @At(value = "HEAD"), cancellable = true)
     private void overrideVineGrowth(BlockState state, ServerWorld world, BlockPos pos, Random random, CallbackInfo ci){
+        // TODO make this depend on player placement
         // grow only downwards
         if (random.nextInt(4) == 0 && state.get(CAN_GROW)) {
             if (pos.getY() > world.getBottomY()) {
